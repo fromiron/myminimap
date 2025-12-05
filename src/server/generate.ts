@@ -22,6 +22,9 @@ export type GenerationResult = {
 const MAPS_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY;
 const GEOCODE_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY;
 const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
+const USE_GEMINI =
+	process.env.VITE_USE_GEMINI !== "false" &&
+	process.env.NODE_ENV !== "development";
 
 const inputSchema = z.object({
 	lat: z.number(),
@@ -109,7 +112,7 @@ Generate the transformed image.`;
 			mode: "passthrough",
 		};
 
-		if (GEMINI_API_KEY) {
+		if (GEMINI_API_KEY && USE_GEMINI) {
 			try {
 				// v1alpha API 버전 사용 (이미지 생성에 필요)
 				const ai = new GoogleGenAI({
