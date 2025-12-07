@@ -3,9 +3,22 @@ import type { GenerationResult } from '../server/generate'
 type ResultModalProps = {
   result: GenerationResult
   onClose: () => void
+  onSave: () => void
+  isSaving: boolean
+  saveError: string | null
+  saveSuccess: boolean
+  onGoLibrary: () => void
 }
 
-export default function ResultModal({ result, onClose }: ResultModalProps) {
+export default function ResultModal({
+  result,
+  onClose,
+  onSave,
+  isSaving,
+  saveError,
+  saveSuccess,
+  onGoLibrary,
+}: ResultModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
       <div className="relative w-full max-w-4xl rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
@@ -55,6 +68,41 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
                 Gemini 이미지 생성에 실패하여 스냅샷만 반환했습니다. ({result.error})
               </div>
             ) : null}
+            {saveSuccess ? (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-200">
+                  저장 완료! 🎉
+                </span>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full border border-slate-700 px-4 py-2 font-semibold text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200"
+                >
+                  모달 닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={onGoLibrary}
+                  className="rounded-full bg-cyan-500 px-4 py-2 font-semibold text-slate-950 shadow transition-colors hover:bg-cyan-400"
+                >
+                  마이라이브러리에서 확인
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={isSaving}
+                  className="rounded-full bg-emerald-500 px-4 py-2 font-semibold text-slate-950 shadow transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-800/60"
+                >
+                  {isSaving ? '저장 중...' : '라이브러리에 저장'}
+                </button>
+                {saveError ? (
+                  <span className="text-xs text-amber-200">{saveError}</span>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       </div>

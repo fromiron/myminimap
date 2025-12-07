@@ -21,6 +21,11 @@ export default defineSchema({
     fov: v.number(),
     imageUrl: v.string(),
     prompt: v.string(),
-    mode: v.union(v.literal('vertex'), v.literal('passthrough')),
+    mode: v.union(
+      v.literal('vertex'),
+      v.literal('gemini'),
+      v.literal('passthrough'),
+      v.literal('vertex'),
+    ),
   }).index('by_user', ['userId']),
 })

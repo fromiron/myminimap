@@ -1,3 +1,4 @@
+import { useUser } from '@clerk/clerk-react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import type { MapCameraChangedEvent } from '@vis.gl/react-google-maps'
@@ -11,9 +12,10 @@ import {
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
+import { useConvexAuth, useMutation } from 'convex/react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { z } from 'zod'
-
+import { api } from '../../convex/_generated/api'
 import ResultModal from '../components/ResultModal'
 import { env } from '../env'
 import {
@@ -53,11 +55,22 @@ function HomePage() {
   const navigate = Route.useNavigate()
   const search = Route.useSearch()
   const mapApiKey = env.VITE_GOOGLE_MAPS_API_KEY
+  const { isSignedIn } = useUser()
 
   const serverGenerate = useServerFn(generateMiniature)
+  const saveMiniature = useMutation(api.miniatures.save)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [result, setResult] = useState<GenerationResult | null>(null)
+  const { isAuthenticated } = useConvexAuth()
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  useEffect(() => {
+    console.log("isAuthenticated", isAuthenticated)
+
+  }, [isAuthenticated])
 
   const viewState = useMemo<ViewState>(
     () => ({ ...DEFAULT_VIEW, ...search }),
@@ -96,6 +109,8 @@ function HomePage() {
   const handleGenerate = useCallback(async () => {
     setGenError(null)
     setIsGenerating(true)
+    setSaveError(null)
+    setSaveSuccess(false)
     const started = performance.now()
 
     try {
@@ -133,6 +148,47 @@ function HomePage() {
       window.setTimeout(() => setIsGenerating(false), remaining)
     }
   }, [serverGenerate, viewState])
+
+  const handleSave = useCallback(async () => {
+    if (!result) return
+    if (!isSignedIn) {
+      setSaveError('로그인 후 저장할 수 있어요.')
+      return
+    }
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const imageUrl = `data:image/png;base64,${result.imageBase64}`
+      await saveMiniature({
+        locationName: result.locationName,
+        lat: Number(viewState.lat),
+        lng: Number(viewState.lng),
+        heading: Number(viewState.heading),
+        pitch: Number(viewState.pitch),
+        fov: Number(viewState.fov),
+        imageUrl,
+        prompt: result.prompt,
+        mode: result.mode,
+      })
+      setSaveSuccess(true)
+      setSaveError(null)
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : '저장 중 오류가 발생했어요.',
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }, [
+    isSignedIn,
+    result,
+    saveMiniature,
+    viewState.fov,
+    viewState.heading,
+    viewState.lat,
+    viewState.lng,
+    viewState.pitch,
+  ])
 
   if (!mapApiKey) {
     return (
@@ -180,7 +236,16 @@ function HomePage() {
           error={genError}
           result={result}
           onGenerate={handleGenerate}
-          onCloseResult={() => setResult(null)}
+          onCloseResult={() => {
+            setResult(null)
+            setSaveError(null)
+            setSaveSuccess(false)
+          }}
+          onSave={handleSave}
+          isSaving={isSaving}
+          saveError={saveError}
+          saveSuccess={saveSuccess}
+          onGoLibrary={() => navigate({ to: '/library' })}
         />
       </div>
     </div>
@@ -606,6 +671,11 @@ type GenerateSectionProps = {
   result: GenerationResult | null
   onGenerate: () => void
   onCloseResult: () => void
+  onSave: () => void
+  isSaving: boolean
+  saveError: string | null
+  saveSuccess: boolean
+  onGoLibrary: () => void
 }
 
 function GenerateSection({
@@ -614,6 +684,11 @@ function GenerateSection({
   result,
   onGenerate,
   onCloseResult,
+  onSave,
+  isSaving,
+  saveError,
+  saveSuccess,
+  onGoLibrary,
 }: GenerateSectionProps) {
   return (
     <>
@@ -654,7 +729,17 @@ function GenerateSection({
         ) : null}
       </div>
 
-      {result ? <ResultModal result={result} onClose={onCloseResult} /> : null}
+      {result ? (
+        <ResultModal
+          result={result}
+          onClose={onCloseResult}
+          onSave={onSave}
+          isSaving={isSaving}
+          saveError={saveError}
+          saveSuccess={saveSuccess}
+          onGoLibrary={onGoLibrary}
+        />
+      ) : null}
     </>
   )
 }
