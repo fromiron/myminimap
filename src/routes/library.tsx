@@ -1,6 +1,7 @@
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from 'convex/react'
+import { useConvex, useConvexAuth } from 'convex/react'
 import {
   ArrowUpRight,
   Clock3,
@@ -21,8 +22,15 @@ export const Route = createFileRoute('/library')({
 })
 
 function LibraryPage() {
-  const miniatures = useQuery(api.miniatures.listMine)
-  const isLoading = miniatures === undefined
+  const convex = useConvex()
+  const { isAuthenticated } = useConvexAuth()
+  const { data: miniatures, isLoading } = useQuery({
+    queryKey: ['miniatures', 'mine'],
+    queryFn: () => convex.query(api.miniatures.listMine, {}),
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid')
 
   return (
