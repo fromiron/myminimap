@@ -22,9 +22,7 @@ export type GenerationResult = {
 const MAPS_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY;
 const GEOCODE_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY;
 const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
-const USE_GEMINI =
-	process.env.VITE_USE_GEMINI !== "false" &&
-	process.env.NODE_ENV !== "development";
+const USE_GEMINI = process.env.VITE_USE_GEMINI !== "false";
 
 const inputSchema = z.object({
 	lat: z.number(),

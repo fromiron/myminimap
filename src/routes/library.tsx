@@ -148,6 +148,13 @@ type MiniatureItem = {
   prompt: string
   mode: string
   linkCreatedAt: number
+  name?: string
+  createdBy?: string
+  creatorProfile?: {
+    nickname?: string | null
+    avatar?: string | null
+    isPublic?: boolean
+  }
 }
 
 type LibraryPreviewGridProps = {
@@ -202,13 +209,19 @@ function LibraryCard({ item, compact }: LibraryCardProps) {
   const { label: modeLabel, color: modeColor, bg: modeBg } =
     modeConfig[item.mode] ?? modeConfig.default
   const aspectClass = compact ? 'aspect-square' : 'aspect-[4/3]'
+  const displayName = item.name?.trim() ? item.name : item.locationName
+  const creatorNickname = item.creatorProfile?.nickname?.trim()
+  const creatorPublic = item.creatorProfile?.isPublic
+  const creatorAvatar = item.creatorProfile?.avatar ?? undefined
+  const creatorLabel = creatorPublic && creatorNickname ? creatorNickname : '비공개 유저'
+  const createdText = `${creatorLabel}가 ${new Date(item._creationTime).toLocaleString()}에 생성했습니다.`
 
   return (
     <div className="group relative bg-card rounded-xl overflow-hidden border border-white/5 hover:border-white/10 transition-all duration-300 hover:shadow-xl hover:shadow-black/20">
       <div className={`relative overflow-hidden ${aspectClass}`}>
         <img
           src={item.imageUrl}
-          alt={item.locationName}
+          alt={displayName}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
@@ -218,7 +231,7 @@ function LibraryCard({ item, compact }: LibraryCardProps) {
           <span className={`text-xs font-medium ${modeColor}`}>{modeLabel}</span>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-3">
-          <h3 className="font-semibold text-white truncate">{item.locationName}</h3>
+          <h3 className="font-semibold text-white truncate">{displayName}</h3>
           <p className="text-xs text-white/70 mt-0.5">
             {new Date(item._creationTime).toLocaleString()}
           </p>
@@ -246,7 +259,18 @@ function LibraryCard({ item, compact }: LibraryCardProps) {
       </div>
 
       <div className="p-4 space-y-3">
-        <p className="text-sm text-muted-foreground line-clamp-2">{item.prompt}</p>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {creatorPublic && creatorAvatar ? (
+            <span className="inline-flex h-7 w-7 overflow-hidden rounded-full border border-white/10">
+              <img src={creatorAvatar} alt={creatorLabel} className="h-full w-full object-cover" />
+            </span>
+          ) : (
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-secondary text-xs font-semibold text-muted-foreground">
+              ?
+            </span>
+          )}
+          <span className="line-clamp-2">{createdText}</span>
+        </div>
 
         <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold text-foreground">
           <AngleBadge label="Heading" value={`${item.heading}°`} />

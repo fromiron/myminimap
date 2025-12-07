@@ -9,7 +9,6 @@
  */
 
 import type * as miniatures from "../miniatures.js";
-import type * as todos from "../todos.js";
 import type * as users from "../users.js";
 
 import type {
@@ -20,7 +19,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   miniatures: typeof miniatures;
-  todos: typeof todos;
   users: typeof users;
 }>;
 

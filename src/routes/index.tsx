@@ -10,7 +10,7 @@ import {
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
-import { useConvexAuth, useMutation } from 'convex/react'
+import { useConvexAuth, useQuery as useConvexQuery, useMutation } from 'convex/react'
 import {
   Compass,
   Eye,
@@ -48,6 +48,8 @@ const searchSchema = z.object({
   fov: z.coerce.number().optional(),
 })
 
+const roundPose = (value: number) => Math.round(value * 1_000_000) / 1_000_000
+
 export const Route = createFileRoute('/')({
   validateSearch: (search) => searchSchema.parse(search),
   component: HomePage,
@@ -66,6 +68,32 @@ function zoomToFov(zoom: number) {
   return clampFov(180 / 2 ** zoom)
 }
 
+function buildStaticUrl({
+  lat,
+  lng,
+  heading,
+  pitch,
+  fov,
+  key,
+}: {
+  lat: number
+  lng: number
+  heading: number
+  pitch: number
+  fov: number
+  key: string
+}) {
+  const params = new URLSearchParams({
+    size: '1024x1024',
+    location: `${lat},${lng}`,
+    heading: `${heading}`,
+    pitch: `${pitch}`,
+    fov: `${fov}`,
+    key,
+  })
+  return `https://maps.googleapis.com/maps/api/streetview?${params.toString()}`
+}
+
 function HomePage() {
   const navigate = Route.useNavigate()
   const search = Route.useSearch()
@@ -74,11 +102,24 @@ function HomePage() {
 
   const serverGenerate = useServerFn(generateMiniature)
   const saveMiniature = useMutation(api.miniatures.save)
+  const existingMiniature = useConvexQuery(api.miniatures.getByPose, {
+    lat: roundPose(Number(search.lat ?? DEFAULT_VIEW.lat)),
+    lng: roundPose(Number(search.lng ?? DEFAULT_VIEW.lng)),
+    heading: roundPose(Number(search.heading ?? DEFAULT_VIEW.heading)),
+    pitch: roundPose(Number(search.pitch ?? DEFAULT_VIEW.pitch)),
+    fov: roundPose(Number(search.fov ?? DEFAULT_VIEW.fov)),
+  })
+  const existingImageUrl = existingMiniature?.imageUrl
+  const existingLocationName = existingMiniature?.locationName
+  const existingPrompt = existingMiniature?.prompt
+  const existingMode = existingMiniature?.mode
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [result, setResult] = useState<GenerationResult | null>(null)
+  const [miniatureName, setMiniatureName] = useState('')
+  const [resultTitle, setResultTitle] = useState<string | null>(null)
   const { isAuthenticated } = useConvexAuth()
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [showControls, setShowControls] = useState(true)
@@ -135,14 +176,51 @@ function HomePage() {
     [updateSearch],
   )
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = async () => {
+    // convex query 로딩 중이면 호출 차단
+    if (existingMiniature === undefined) {
+      setGenError('이전 생성 여부를 확인하는 중입니다. 잠시 후 다시 시도해 주세요.')
+      return
+    }
+
     setGenError(null)
     setIsGenerating(true)
     setSaveError(null)
     setSaveSuccess(false)
+    setResultTitle(null)
     const started = performance.now()
 
     try {
+      // 기존 동일 포즈 결과가 있으면 재사용
+      if (existingImageUrl) {
+        const dataUrl = existingImageUrl
+        const base64 = dataUrl.startsWith('data:image')
+          ? dataUrl.substring(dataUrl.indexOf(',') + 1)
+          : dataUrl
+        const staticUrl =
+          mapApiKey && viewState.lat && viewState.lng
+            ? buildStaticUrl({
+              lat: viewState.lat,
+              lng: viewState.lng,
+              heading: viewState.heading,
+              pitch: viewState.pitch,
+              fov: viewState.fov,
+              key: mapApiKey,
+            })
+            : existingImageUrl
+        setResult({
+          imageBase64: base64,
+          locationName: existingLocationName ?? '',
+          prompt: existingPrompt ?? '',
+          staticUrl,
+          mode: (existingMode as GenerationResult['mode']) ?? 'passthrough',
+          error: undefined,
+        })
+        setResultTitle('이미 미니어처가 존재해요!')
+        setIsGenerating(false)
+        return
+      }
+
       const payload: GenerateInput = {
         lat: Number(viewState.lat),
         lng: Number(viewState.lng),
@@ -166,6 +244,8 @@ function HomePage() {
           mode: data.mode,
           error: data.error,
         })
+        setResultTitle(null)
+        setMiniatureName(data.locationName ?? '')
       }
     } catch (error) {
       setGenError(
@@ -176,7 +256,7 @@ function HomePage() {
       const remaining = Math.max(0, 5000 - elapsed)
       window.setTimeout(() => setIsGenerating(false), remaining)
     }
-  }, [serverGenerate, viewState])
+  }
 
   const handleSave = useCallback(async () => {
     if (!result) return
@@ -187,6 +267,7 @@ function HomePage() {
     setSaveError(null)
     setIsSaving(true)
     try {
+      const nameToSave = miniatureName.trim() || result.locationName
       const imageUrl = `data:image/png;base64,${result.imageBase64}`
       await saveMiniature({
         locationName: result.locationName,
@@ -198,6 +279,7 @@ function HomePage() {
         imageUrl,
         prompt: result.prompt,
         mode: result.mode,
+        name: nameToSave,
       })
       setSaveSuccess(true)
       setSaveError(null)
@@ -210,6 +292,7 @@ function HomePage() {
     }
   }, [
     isSignedIn,
+    miniatureName,
     result,
     saveMiniature,
     viewState.fov,
@@ -243,7 +326,7 @@ function HomePage() {
           {isDesktop ? (
             <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-none">
               <ResizablePanel defaultSize={50} minSize={30}>
-                <div className="h-full relative bg-gradient-to-br from-card to-background">
+                <div className="h-full relative bg-linear-to-br from-card to-background">
                   <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
                     <Compass className="h-3.5 w-3.5 text-primary" />
                     Map View
@@ -262,7 +345,7 @@ function HomePage() {
               <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/50 transition-colors w-1" />
 
               <ResizablePanel defaultSize={50} minSize={30}>
-                <div className="h-full relative bg-gradient-to-br from-card to-background">
+                <div className="h-full relative bg-linear-to-br from-card to-background">
                   <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
                     <Move3D className="h-3.5 w-3.5 text-accent" />
                     Street View
@@ -283,7 +366,7 @@ function HomePage() {
             </ResizablePanelGroup>
           ) : (
             <div className="flex flex-col flex-1">
-              <div className="relative bg-gradient-to-br from-card to-background min-h-[40vh]">
+              <div className="relative bg-linear-to-br from-card to-background min-h-[40vh]">
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
                   <Compass className="h-3 w-3 text-primary" />
                   Map
@@ -300,7 +383,7 @@ function HomePage() {
 
               <div className="h-1 bg-border/50" />
 
-              <div className="relative bg-gradient-to-br from-card to-background min-h-[40vh]">
+              <div className="relative bg-linear-to-br from-card to-background min-h-[40vh]">
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
                   <Move3D className="h-3 w-3 text-accent" />
                   Street
@@ -344,7 +427,7 @@ function HomePage() {
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="rounded-lg md:rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 gap-1.5 md:gap-2 px-3 md:px-6 h-9 md:h-10 font-medium text-sm"
+                  className="rounded-lg md:rounded-xl bg-linear-to-r from-primary to-accent hover:opacity-90 text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 gap-1.5 md:gap-2 px-3 md:px-6 h-9 md:h-10 font-medium text-sm"
                 >
                   {isGenerating ? (
                     <>
@@ -395,7 +478,14 @@ function HomePage() {
         ) : null}
         {saveSuccess ? (
           <div className="rounded-xl border border-emerald-800/60 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-100">
-            라이브러리에 저장했습니다. <button onClick={() => navigate({ to: '/library' })} className="underline underline-offset-4">보러가기</button>
+            라이브러리에 저장했습니다.{' '}
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/library' })}
+              className="underline underline-offset-4"
+            >
+              보러가기
+            </button>
           </div>
         ) : null}
       </div>
@@ -407,12 +497,17 @@ function HomePage() {
             setResult(null)
             setSaveError(null)
             setSaveSuccess(false)
+            setMiniatureName('')
+            setResultTitle(null)
           }}
           onSave={handleSave}
           isSaving={isSaving}
           saveError={saveError}
           saveSuccess={saveSuccess}
           onGoLibrary={() => navigate({ to: '/library' })}
+          name={miniatureName}
+          onNameChange={setMiniatureName}
+          titleOverride={resultTitle ?? undefined}
         />
       ) : null}
     </div>
