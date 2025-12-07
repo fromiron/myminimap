@@ -1,68 +1,121 @@
 # 🗺️ MyMiniMap (마이미니맵)
 
-> **"익숙한 우리 동네를 3D 장난감 세상으로."** > Google Maps와 Generative AI를 활용하여 스트리트뷰를 고품질 아이소메트릭(Isometric) 미니어처로 변환해 주는 웹 애플리케이션입니다.
+> **"익숙한 동네를 3D 장난감 세상으로."**  
+> Google Maps + Gemini Imagen으로 스트리트뷰를 아이소메트릭 미니어처로 재구성하는 웹앱.
 
 ![Project Status](https://img.shields.io/badge/Status-Development-blue) ![Stack](https://img.shields.io/badge/Stack-TanStack-orange)
 
-## ✨ 프로젝트 소개 (Introduction)
+## ✨ 주요 기능
 
-**MyMiniMap**은 사용자가 선택한 장소의 풍경을 AI가 분석하여, 마치 장난감으로 만든 듯한 귀여운 3D 디오라마 이미지로 재창조해 주는 서비스입니다.
+- **📍 지도 & 스트리트뷰 싱크**
+  - `@vis.gl/react-google-maps`로 지도·스트리트뷰를 동시에 제어
+  - Places Autocomplete 검색, 지도 이동만으로 좌표 반영
+  - URL 파라미터(`lat`,`lng`,`heading`,`pitch`,`fov`)가 **단일 진실원천**: 이동/회전 시 즉시 반영, 공유·새로고침 시 뷰 복원
 
-단순한 이미지 필터가 아닙니다. **Google Maps**로 원하는 구도를 잡으면, **Google Imagen**가 해당 장면의 특징(건물, 도로, 분위기)을 인식하여 완전히 새로운 3D 일러스트를 그려냅니다. 사용자는 구글 로그인 후 자신만의 미니어처 컬렉션을 저장하고 관리할 수 있습니다.
+- **🎨 AI 미니어처 생성**
+  - 서버 함수(`createServerFn`)에서 Street View Static 캡처 → Reverse Geocoding → Gemini Imagen 호출
+  - 5~10초 스피너/스켈레톤 UX, 실패 시 메시지 노출
 
-## 🚀 주요 기능 (Key Features)
+- **💾 내 라이브러리**
+  - Clerk Google OAuth
+  - Convex DB에 이미지 URL·위치명·좌표·각도·프롬프트·모드 저장
+  - 최신순 그리드, 카드에서 홈 뷰 복원 링크 제공
 
-- **📍 장소 탐색 (Location Discovery)**
-  - Google Maps 연동으로 전 세계 어디든 탐색 가능.
-  - 장소 검색(Autocomplete) 및 핀 포인트 지정.
-  - 스트리트뷰와 지도를 동시에 보며 위치 확인.
+- **🧭 프로필**
+  - 닉네임/공개 여부 설정, 아바타 업로드(Convex Storage)
 
-- **📷 앵글 커스텀 & URL 동기화 (Perfect Framing)**
-  - 360도 회전(Heading), 상하 각도(Pitch), 줌(FOV) 조절로 '얼짱 각도' 탐색.
-  - **Deep Linking:** 모든 카메라 상태가 URL에 실시간 동기화되어, 링크 공유 시 상대방도 똑같은 뷰를 볼 수 있음.
-
-- **🎨 AI 미니어처 생성 (AI Generation)**
-  - Server Function을 통한 안전한 API 호출.
-  - 좌표 기반 역지오코딩(Reverse Geocoding)으로 장소명 자동 추출 및 프롬프트 최적화.
-  - 최신 Imagen를 활용한 고품질 3D 아이소메트릭 이미지 생성.
-
-- **💾 내 라이브러리 (My Library)**
-  - **Clerk** 기반의 간편한 구글 로그인.
-  - **Convex** DB를 활용한 생성 결과 영구 저장.
-  - 내가 만든 미니어처들을 갤러리 형태로 모아보기.
-
-## 🛠️ 기술 스택 (Tech Stack)
-
-이 프로젝트는 **TanStack** 생태계와 최신 Serverless 기술을 적극 활용하여 구축되었습니다.
+## 🛠️ 기술 스택
 
 | 분류 | 기술 | 비고 |
-| :--- | :--- | :--- |
-| **Framework** | **TanStack Start** | React 기반 풀스택 프레임워크 (SSR) |
-| **Routing** | **TanStack Router** | Type-safe 라우팅 및 URL 상태 관리 |
-| **Data Fetching**| **TanStack Query** | 서버 상태 관리 및 비동기 로직 처리 |
-| **Database** | **Convex** | 실시간 백엔드 및 데이터베이스 |
-| **Auth** | **Clerk** | 사용자 인증 및 관리 |
-| **Maps** | **Google Maps Platform** | Maps JS API, Street View Static API |
-| **AI** | **Google Gemini** | 최신 Imagen 모델 (Image Generation) |
-| **Styling** | **Tailwind CSS** + **Shadcn/UI** | 빠르고 일관된 UI 디자인 |
-| **Deployment** | **Vercel** | Nitro 어댑터 사용 |
+| --- | --- | --- |
+| Framework | TanStack Start (React, SSR, Nitro) | |
+| Routing/State | TanStack Router (`createFileRoute`, `validateSearch`) | URL 파라미터 기반 상태 |
+| Data | TanStack Query | |
+| Backend/DB | Convex | 실시간 DB, mutations/queries |
+| Auth | Clerk | Google OAuth |
+| Maps | Google Maps JS, Street View Static, Places | `@vis.gl/react-google-maps` |
+| AI | Google Gemini (Imagen via `@google/genai`) | 서버 전용 키 |
+| UI | Tailwind CSS v4, shadcn/ui, Lucide | |
+| Deploy | Vercel + Nitro | |
 
-## 🏗️ 아키텍처 (Architecture)
+## 📂 주요 구조
+
+- `src/routes/` — 파일 기반 라우트 (`/`, `/library`, `/me`, `__root`)
+- `src/server/` — 서버 함수 (`generate.ts` 등)
+- `src/components/` — Header, ResultModal, ProfileBadge 등 UI
+- `convex/` — Convex 함수 & 스키마 정의
+
+## 🗄️ Convex 스키마 (요약)
+
+- `miniatures`: `locationName`, `lat`, `lng`, `heading`, `pitch`, `fov`, `imageUrl`, `prompt`, `mode`  
+  인덱스: `by_pose (lat,lng,heading,pitch,fov)`
+- `userMiniatures`: `userId`, `miniatureId`  
+  인덱스: `by_user`, `by_miniature`, `by_user_miniature`
+- `userProfiles`: `userId`, `nickname`, `nicknameNormalized`, `isPublic`, `avatar`  
+  인덱스: `by_user`, `by_nickname_norm`
+
+## 🧭 라우트 & UX 플로우
+
+- `/` (Home): 지도·스트리트뷰 동기화, URL 파라미터 저장, Gemini 생성 & 결과 모달
+- `/library`: 내 저장본 그리드, 카드에서 홈 뷰 복원 링크
+- `/me`: 프로필/닉네임/아바타 관리 (로그인 필요)
+
+## 🏗️ 아키텍처
 
 ```mermaid
 graph TD
     User[사용자] -->|검색 & 앵글 조절| Client[클라이언트 (TanStack Router)]
     Client -->|URL 파라미터 동기화| Client
     User -->|생성 요청| ServerFn[서버 함수 (TanStack Start)]
-    
+
     subgraph "Server Side"
         ServerFn -->|1. 이미지 캡처| StaticAPI[Google Street View Static API]
         ServerFn -->|2. 장소명 추출| GeoAPI[Google Geocoding API]
-        ServerFn -->|3. 프롬프트 + 이미지| VertexAI[Google Vertex AI (Imagen)]
+        ServerFn -->|3. 프롬프트 + 이미지| Gemini[Google Gemini Imagen]
     end
-    
-    VertexAI -->|생성된 이미지 URL| ServerFn
+
+    Gemini -->|base64 이미지| ServerFn
     ServerFn -->|결과 반환| Client
-    
+
     Client -->|저장 요청| Convex[Convex DB]
-    Convex -->|유저 데이터 검증| Clerk[Clerk Auth]
+    Convex -->|유저 인증| Clerk[Clerk Auth]
+```
+
+## ⚙️ 로컬 개발
+
+### 1) 사전 준비
+- Node 22+ / pnpm
+- Google Cloud: Maps JS, Street View Static, Places API
+- Google AI Studio: Gemini Imagen
+- Clerk 프로젝트, Convex 프로젝트
+
+### 2) 환경 변수 (.env.local)
+
+```bash
+VITE_GOOGLE_MAPS_API_KEY=YOUR_MAPS_JS_KEY          # 클라이언트
+CLERK_PUBLISHABLE_KEY=pk_test_xxx                  # 클라이언트
+CLERK_SECRET_KEY=sk_test_xxx                       # 서버
+GEMINI_API_KEY=YOUR_GEMINI_KEY                     # 서버 (createServerFn)
+CONVEX_DEPLOYMENT=...                              # 필요 시
+```
+
+### 3) 설치 & 실행
+
+```bash
+pnpm install
+pnpm dev:convex      # Convex 로컬 (선택)
+pnpm dev             # Vite dev (기본 3000)
+```
+
+## 🔒 보안 & 베스트 프랙티스
+
+- 지도 상태는 **URL 파라미터**만 사용 (글로벌 스토어 금지)
+- Gemini/Clerk Secret 등 키는 **서버 함수**에서만 접근
+- Convex mutations/queries는 `ctx.auth.getUserIdentity()`로 사용자 검증
+
+## 🛤️ 로드맵
+
+- Convex Storage 이미지 저장/서빙
+- `/library` 보호 라우팅 강화 & 공유 카드 뷰
+- 생성 실패 폴백/재시도 UX 개선
+
