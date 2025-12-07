@@ -12,7 +12,6 @@ export default defineSchema({
     completed: v.boolean(),
   }),
   miniatures: defineTable({
-    userId: v.string(),
     locationName: v.string(),
     lat: v.number(),
     lng: v.number(),
@@ -27,5 +26,13 @@ export default defineSchema({
       v.literal('passthrough'),
       v.literal('vertex'),
     ),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_pose', ['lat', 'lng', 'heading', 'pitch', 'fov']),
+  userMiniatures: defineTable({
+    userId: v.string(),
+    miniatureId: v.id('miniatures'),
+  })
+    .index('by_user', ['userId'])
+    .index('by_miniature', ['miniatureId'])
+    .index('by_user_miniature', ['userId', 'miniatureId']),
 })

@@ -163,19 +163,7 @@ function LibraryPage() {
   )
 }
 
-type MiniatureItem = {
-  _id: string
-  locationName: string
-  imageUrl: string
-  lat: number
-  lng: number
-  heading: number
-  pitch: number
-  fov: number
-  mode: string
-  prompt: string
-  _creationTime: number
-}
+type MiniatureItem = Awaited<ReturnType<typeof api.miniatures.listMine>>[number]
 
 type LibraryPreviewGridProps = {
   items: MiniatureItem[]
