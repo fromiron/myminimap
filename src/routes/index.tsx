@@ -4,20 +4,35 @@ import { useServerFn } from '@tanstack/react-start'
 import type { MapCameraChangedEvent } from '@vis.gl/react-google-maps'
 import {
   APIProvider,
-  ControlPosition,
   Map as GoogleMap,
-  MapControl,
   Marker,
   useApiLoadingStatus,
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
 import { useConvexAuth, useMutation } from 'convex/react'
+import {
+  Compass,
+  Eye,
+  Maximize,
+  Move3D,
+  Search,
+  Sparkles,
+} from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { z } from 'zod'
 import { api } from '../../convex/_generated/api'
+import { GeneratingOverlay } from '../components/GeneratingOverlay'
 import ResultModal from '../components/ResultModal'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '../components/ui/resizable'
 import { env } from '../env'
+import { cn } from '../lib/utils'
 import {
   type GenerateInput,
   type GenerationResult,
@@ -66,6 +81,20 @@ function HomePage() {
   const [result, setResult] = useState<GenerationResult | null>(null)
   const { isAuthenticated } = useConvexAuth()
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [showControls, setShowControls] = useState(true)
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(min-width: 768px)').matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(min-width: 768px)')
+    const handler = (event: MediaQueryListEvent) => setIsDesktop(event.matches)
+    setIsDesktop(media.matches)
+    media.addEventListener('change', handler)
+    return () => media.removeEventListener('change', handler)
+  }, [])
 
   useEffect(() => {
     console.log("isAuthenticated", isAuthenticated)
@@ -204,39 +233,177 @@ function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-        <section className="space-y-2">
-          <p className="text-sm text-cyan-300/90">Phase 1 · Location & Auth</p>
-          <h1 className="text-3xl font-bold">지도에서 장소를 잡고 각도를 기록하세요</h1>
-          <p className="max-w-3xl text-sm text-slate-300">
-            지도 이동과 스트리트 뷰 시야(heading, pitch, fov)는 URL 검색 파라미터로 즉시 반영되어
-            공유/새로고침 시에도 같은 뷰를 복원합니다.
-          </p>
-        </section>
+    <div className="min-h-screen bg-background text-foreground">
+      <APIProvider
+        apiKey={mapApiKey}
+        libraries={['places', 'streetView']}
+        solutionChannel="GMP_MyMiniMap_Phase1"
+      >
+        <div className="relative flex min-h-[calc(100vh-56px)] flex-col">
+          {isDesktop ? (
+            <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-none">
+              <ResizablePanel defaultSize={50} minSize={30}>
+                <div className="h-full relative bg-gradient-to-br from-card to-background">
+                  <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
+                    <Compass className="h-3.5 w-3.5 text-primary" />
+                    Map View
+                  </div>
+                  <div className="absolute inset-0 p-4 md:p-6">
+                    <MapPanel
+                      viewState={viewState}
+                      onCameraChange={handleMapCameraChange}
+                      fullHeight
+                      className="h-full"
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
 
-        <APIProvider
-          apiKey={mapApiKey}
-          libraries={['places', 'streetView']}
-          solutionChannel="GMP_MyMiniMap_Phase1"
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MapPanel viewState={viewState} onCameraChange={handleMapCameraChange} />
-            <StreetViewPanel
-              viewState={viewState}
-              onChange={handleStreetViewChange}
-              fovToZoom={fovToZoom}
-              zoomToFov={zoomToFov}
-            />
+              <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/50 transition-colors w-1" />
+
+              <ResizablePanel defaultSize={50} minSize={30}>
+                <div className="h-full relative bg-gradient-to-br from-card to-background">
+                  <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
+                    <Move3D className="h-3.5 w-3.5 text-accent" />
+                    Street View
+                  </div>
+                  <div className="absolute inset-0 p-4 md:p-6">
+                    <StreetViewPanel
+                      viewState={viewState}
+                      onChange={handleStreetViewChange}
+                      fovToZoom={fovToZoom}
+                      zoomToFov={zoomToFov}
+                      fullHeight
+                      className="h-full"
+                      isGenerating={isGenerating}
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <div className="flex flex-col flex-1">
+              <div className="relative bg-gradient-to-br from-card to-background min-h-[40vh]">
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
+                  <Compass className="h-3 w-3 text-primary" />
+                  Map
+                </div>
+                <div className="absolute inset-0 p-3">
+                  <MapPanel
+                    viewState={viewState}
+                    onCameraChange={handleMapCameraChange}
+                    fullHeight
+                    className="h-full"
+                  />
+                </div>
+              </div>
+
+              <div className="h-1 bg-border/50" />
+
+              <div className="relative bg-gradient-to-br from-card to-background min-h-[40vh]">
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-xs font-medium text-white/80">
+                  <Move3D className="h-3 w-3 text-accent" />
+                  Street
+                </div>
+                <div className="absolute inset-0 p-3">
+                  <StreetViewPanel
+                    viewState={viewState}
+                    onChange={handleStreetViewChange}
+                    fovToZoom={fovToZoom}
+                    zoomToFov={zoomToFov}
+                    fullHeight
+                    className="h-full"
+                    isGenerating={isGenerating}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showControls ? (
+            <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] md:w-auto max-w-2xl">
+              <div className="flex items-center gap-2 md:gap-3 bg-card/90 backdrop-blur-xl rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3 shadow-2xl border border-white/10 mb-4">
+                <div className="relative flex-1 md:flex-none">
+                  <Search className="absolute left-2.5 md:left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <PlacesSearch
+                    onPlaceSelected={handleMapCameraChange}
+                    placeholder="Search places..."
+                    className="w-full md:w-48 lg:w-64"
+                    inputClassName="pl-8 md:pl-9 pr-3 md:pr-4 h-9 md:h-10 rounded-lg md:rounded-xl bg-secondary/50 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 text-sm"
+                  />
+                </div>
+
+                <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl bg-secondary/50 text-xs font-mono text-muted-foreground">
+                  <span>H: {Math.round(viewState.heading)}°</span>
+                  <span className="text-border">|</span>
+                  <span>P: {Math.round(viewState.pitch)}°</span>
+                  <span className="text-border">|</span>
+                  <span>FOV: {Math.round(viewState.fov)}°</span>
+                </div>
+
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="rounded-lg md:rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 gap-1.5 md:gap-2 px-3 md:px-6 h-9 md:h-10 font-medium text-sm"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="h-3.5 w-3.5 md:h-4 md:w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      <span className="hidden sm:inline">Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Generate</span>
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:flex rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                  onClick={() => setShowControls(false)}
+                >
+                  <Maximize className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="icon"
+              className="absolute bottom-6 right-6 z-30 rounded-xl h-12 w-12 bg-card/90 backdrop-blur-xl shadow-lg border border-white/10"
+              onClick={() => setShowControls(true)}
+            >
+              <Eye className="h-5 w-5 text-foreground" />
+            </Button>
+          )}
+        </div>
+      </APIProvider>
+
+      <div className="mx-auto max-w-6xl px-4 py-6 space-y-3">
+        {genError ? (
+          <div className="rounded-xl border border-amber-800/60 bg-amber-900/30 px-4 py-3 text-sm text-amber-100">
+            {genError}
           </div>
-        </APIProvider>
+        ) : null}
+        {saveError ? (
+          <div className="rounded-xl border border-rose-800/60 bg-rose-900/30 px-4 py-3 text-sm text-rose-100">
+            {saveError}
+          </div>
+        ) : null}
+        {saveSuccess ? (
+          <div className="rounded-xl border border-emerald-800/60 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-100">
+            라이브러리에 저장했습니다. <button onClick={() => navigate({ to: '/library' })} className="underline underline-offset-4">보러가기</button>
+          </div>
+        ) : null}
+      </div>
 
-        <GenerateSection
-          isGenerating={isGenerating}
-          error={genError}
+      {result ? (
+        <ResultModal
           result={result}
-          onGenerate={handleGenerate}
-          onCloseResult={() => {
+          onClose={() => {
             setResult(null)
             setSaveError(null)
             setSaveSuccess(false)
@@ -247,7 +414,7 @@ function HomePage() {
           saveSuccess={saveSuccess}
           onGoLibrary={() => navigate({ to: '/library' })}
         />
-      </div>
+      ) : null}
     </div>
   )
 }
@@ -255,15 +422,18 @@ function HomePage() {
 type MapPanelProps = {
   viewState: ViewState
   onCameraChange: (patch: Partial<ViewState>) => void
+  className?: string
+  fullHeight?: boolean
 }
 
-function MapPanel({ viewState, onCameraChange }: MapPanelProps) {
+function MapPanel({ viewState, onCameraChange, className, fullHeight }: MapPanelProps) {
   const mapId = useId()
   const defaultCenter = useMemo(
     () => ({ lat: viewState.lat, lng: viewState.lng }),
     [viewState.lat, viewState.lng],
   )
   const defaultZoom = 16
+  const mapHeightClass = fullHeight ? 'h-full' : 'h-[360px] w-full lg:h-[520px]'
 
   const handleCameraChanged = useCallback(
     (event: MapCameraChangedEvent) => {
@@ -279,18 +449,23 @@ function MapPanel({ viewState, onCameraChange }: MapPanelProps) {
   )
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/70 shadow-lg">
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+    <div
+      className={cn(
+        'rounded-2xl border border-white/10 bg-card/70 shadow-xl backdrop-blur flex flex-col',
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Map</p>
-          <p className="text-sm font-semibold text-slate-100">Google Maps</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Map</p>
+          <p className="text-sm font-semibold text-foreground">Google Maps</p>
         </div>
-        <div className="text-xs text-slate-400">
-          <span className="font-semibold text-slate-200">Lat/Lng</span>{' '}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground/80">Lat/Lng</span>{' '}
           {viewState.lat.toFixed(4)}, {viewState.lng.toFixed(4)}
         </div>
       </div>
-      <div className="relative h-[360px] w-full lg:h-[520px]">
+      <div className={cn('relative w-full overflow-hidden', mapHeightClass, fullHeight && 'flex-1')}>
         <GoogleMap
           id={mapId}
           defaultCenter={defaultCenter}
@@ -298,16 +473,11 @@ function MapPanel({ viewState, onCameraChange }: MapPanelProps) {
           reuseMaps
           gestureHandling="greedy"
           disableDefaultUI
-          className="h-full w-full"
+          className="h-full w-full rounded-xl"
           onCameraChanged={handleCameraChanged}
         >
           <MapViewSync viewState={viewState} />
           <Marker position={{ lat: viewState.lat, lng: viewState.lng }} />
-          <MapControl position={ControlPosition.TOP_CENTER}>
-            <div className="pointer-events-auto p-3">
-              <PlacesSearch onPlaceSelected={onCameraChange} />
-            </div>
-          </MapControl>
         </GoogleMap>
       </div>
     </div>
@@ -335,9 +505,12 @@ function MapViewSync({ viewState }: { viewState: ViewState }) {
 
 type PlacesSearchProps = {
   onPlaceSelected: (patch: Partial<ViewState>) => void
+  className?: string
+  inputClassName?: string
+  placeholder?: string
 }
 
-function PlacesSearch({ onPlaceSelected }: PlacesSearchProps) {
+function PlacesSearch({ onPlaceSelected, className, inputClassName, placeholder }: PlacesSearchProps) {
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const placesLib = useMapsLibrary('places')
@@ -371,13 +544,21 @@ function PlacesSearch({ onPlaceSelected }: PlacesSearchProps) {
   }, [map, onPlaceSelected, placesLib])
 
   return (
-    <div className="rounded-full bg-slate-950/80 ring-1 ring-slate-700 shadow-lg backdrop-blur">
-      <input
+    <div
+      className={cn(
+        'rounded-full bg-card/80 ring-1 ring-border shadow-lg backdrop-blur',
+        className,
+      )}
+    >
+      <Input
         ref={inputRef}
         value={inputValue}
         onChange={(event) => setInputValue(event.target.value)}
-        placeholder="장소를 검색하세요 (예: 서울 시청)"
-        className="w-[260px] rounded-full bg-transparent px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+        placeholder={placeholder ?? '장소를 검색하세요 (예: 서울 시청)'}
+        className={cn(
+          'w-full rounded-full border-none bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-none focus:outline-none focus-visible:ring-0 focus-visible:border-transparent',
+          inputClassName,
+        )}
       />
     </div>
   )
@@ -388,6 +569,9 @@ type StreetViewPanelProps = {
   onChange: (patch: Partial<ViewState>) => void
   fovToZoom: (fov: number) => number
   zoomToFov: (zoom: number) => number
+  className?: string
+  fullHeight?: boolean
+  isGenerating?: boolean
 }
 
 function StreetViewPanel({
@@ -395,30 +579,45 @@ function StreetViewPanel({
   onChange,
   fovToZoom,
   zoomToFov,
+  className,
+  fullHeight,
+  isGenerating,
 }: StreetViewPanelProps) {
+  const panelHeightClass = fullHeight ? 'h-full' : 'h-[360px] w-full lg:h-[520px]'
+
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/70 shadow-lg">
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+    <div
+      className={cn(
+        'rounded-2xl border border-white/10 bg-card/70 shadow-xl backdrop-blur flex flex-col',
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Street View</p>
-          <p className="text-sm font-semibold text-slate-100">카메라 각도 동기화</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Street View</p>
+          <p className="text-sm font-semibold text-foreground">카메라 각도 동기화</p>
         </div>
-        <div className="text-xs text-slate-400">
-          <span className="font-semibold text-slate-200">Heading</span>{' '}
-          {Math.round(viewState.heading)}° ·{' '}
-          <span className="font-semibold text-slate-200">Pitch</span>{' '}
-          {Math.round(viewState.pitch)}° ·{' '}
-          <span className="font-semibold text-slate-200">FOV</span>{' '}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground/80">Heading</span>{' '}
+          {Math.round(viewState.heading)}° · <span className="font-semibold text-foreground/80">Pitch</span>{' '}
+          {Math.round(viewState.pitch)}° · <span className="font-semibold text-foreground/80">FOV</span>{' '}
           {Math.round(viewState.fov)}°
         </div>
       </div>
-      <div className="relative h-[360px] w-full overflow-hidden rounded-b-xl lg:h-[520px]">
+      <div
+        className={cn(
+          'relative w-full overflow-hidden rounded-b-xl',
+          panelHeightClass,
+          fullHeight && 'flex-1',
+        )}
+      >
         <StreetViewCanvas
           viewState={viewState}
           onChange={onChange}
           fovToZoom={fovToZoom}
           zoomToFov={zoomToFov}
         />
+        {isGenerating ? <GeneratingOverlay /> : null}
       </div>
     </div>
   )
@@ -631,10 +830,10 @@ function StreetViewCanvas({
   }
 
   return (
-    <div className="relative h-full w-full bg-slate-950">
+    <div className="relative h-full w-full bg-background">
       <div ref={containerRef} className="h-full w-full" />
       {statusMessage ? (
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-lg border border-slate-800 bg-slate-900/90 px-4 py-3 text-center text-sm text-slate-200">
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-card/90 px-4 py-3 text-center text-sm text-foreground">
           {statusMessage}
         </div>
       ) : null}
@@ -665,81 +864,3 @@ function useDebouncedSearchUpdater(navigate: NavigateFn, delay = 150) {
   )
 }
 
-type GenerateSectionProps = {
-  isGenerating: boolean
-  error: string | null
-  result: GenerationResult | null
-  onGenerate: () => void
-  onCloseResult: () => void
-  onSave: () => void
-  isSaving: boolean
-  saveError: string | null
-  saveSuccess: boolean
-  onGoLibrary: () => void
-}
-
-function GenerateSection({
-  isGenerating,
-  error,
-  result,
-  onGenerate,
-  onCloseResult,
-  onSave,
-  isSaving,
-  saveError,
-  saveSuccess,
-  onGoLibrary,
-}: GenerateSectionProps) {
-  return (
-    <>
-      <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">AI Generation</p>
-            <p className="text-lg font-semibold text-slate-100">
-              현재 뷰를 3D 미니어처로 생성
-            </p>
-            <p className="text-sm text-slate-300">
-              스트리트뷰 스냅샷 → 역지오코딩 → Gemini API(Imagen 3) 순서로 처리합니다.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={isGenerating}
-              className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-800/60"
-            >
-              {isGenerating ? '생성 중... (약 5~10초)' : '미니어처 생성'}
-            </button>
-          </div>
-        </div>
-
-        {error ? (
-          <div className="mt-3 rounded-lg border border-red-800/60 bg-red-900/30 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        {isGenerating ? (
-          <div className="mt-4 flex items-center gap-3 text-sm text-slate-300">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-            이미지 생성 중입니다. 5~10초 정도 소요될 수 있어요.
-          </div>
-        ) : null}
-      </div>
-
-      {result ? (
-        <ResultModal
-          result={result}
-          onClose={onCloseResult}
-          onSave={onSave}
-          isSaving={isSaving}
-          saveError={saveError}
-          saveSuccess={saveSuccess}
-          onGoLibrary={onGoLibrary}
-        />
-      ) : null}
-    </>
-  )
-}

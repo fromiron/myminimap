@@ -1,16 +1,20 @@
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useQuery } from 'convex/react'
 import {
   ArrowUpRight,
   Clock3,
   Compass,
+  Grid3X3,
+  LayoutGrid,
   Lock,
-  MapPin,
+  MoreHorizontal,
   Sparkles,
 } from 'lucide-react'
-import { useQuery } from 'convex/react'
+import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { SignInCta } from '../components/SignInCta'
+import { Button } from '../components/ui/button'
 
 export const Route = createFileRoute('/library')({
   component: LibraryPage,
@@ -19,9 +23,10 @@ export const Route = createFileRoute('/library')({
 function LibraryPage() {
   const miniatures = useQuery(api.miniatures.listMine)
   const isLoading = miniatures === undefined
+  const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid')
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
@@ -69,119 +74,106 @@ function LibraryPage() {
         </SignedOut>
 
         <SignedIn>
-          <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-            <section className="space-y-4">
-              {isLoading ? (
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-lg">
-                  <p className="text-sm text-slate-300">불러오는 중...</p>
-                </div>
-              ) : miniatures && miniatures.length > 0 ? (
-                <LibraryPreviewGrid items={miniatures} />
-              ) : (
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-lg">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-cyan-200/80">
-                        Empty State
-                      </p>
-                      <h2 className="text-xl font-semibold">아직 저장된 미니어처가 없어요</h2>
-                      <p className="mt-1 text-sm text-slate-300">
-                        홈에서 생성 후 &quot;Save to Library&quot;를 누르면 최신순으로 여기에 나타납니다.
-                      </p>
-                    </div>
-                    <Link
-                      to="/"
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
-                    >
-                      지금 생성하러 가기
-                      <ArrowUpRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <aside className="space-y-4">
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-lg">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-200/80">
-                  <Compass className="h-4 w-4" />
-                  Library Flow
-                </div>
-                <ul className="mt-3 space-y-3 text-sm text-slate-200">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    Street View 각도(heading, pitch, fov)는 URL 파라미터에 저장되어 동일한 뷰로 복원됩니다.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    Convex Mutation에서 사용자 ID로 안전하게 저장하며, createdAt 역순으로 정렬합니다.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    카드의 &quot;위치로 이동&quot; 링크를 누르면 홈 지도 뷰가 즉시 재설정됩니다.
-                  </li>
-                </ul>
+          <section className="space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-secondary/50 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'grid'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('compact')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'compact'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </button>
               </div>
+            </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-lg">
-                <div className="flex items-center justify-between">
+            {isLoading ? (
+              <div className="rounded-2xl border border-white/10 bg-card/80 p-5 shadow-lg backdrop-blur">
+                <p className="text-sm text-muted-foreground">불러오는 중...</p>
+              </div>
+            ) : miniatures && miniatures.length > 0 ? (
+              <LibraryPreviewGrid items={miniatures} viewMode={viewMode} />
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-card/80 p-5 shadow-lg backdrop-blur">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-cyan-200/80">
-                      Save & Sync
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Empty State
                     </p>
-                    <h3 className="text-lg font-semibold">다음 단계 미리보기</h3>
-                  </div>
-                  <Sparkles className="h-5 w-5 text-cyan-300" />
-                </div>
-                <div className="mt-3 grid gap-3 text-sm text-slate-200">
-                  <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-3">
-                    <p className="font-semibold">Auth 보호</p>
-                    <p className="text-slate-300">
-                      Clerk 로그인 상태에서만 /library 접근이 가능하도록 라우팅 가드를 확장할 예정입니다.
+                    <h2 className="text-xl font-semibold text-foreground">아직 저장된 미니어처가 없어요</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      홈에서 생성 후 "Save to Library"를 누르면 최신순으로 여기에 나타납니다.
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-3">
-                    <p className="font-semibold">Gemini 결과 저장</p>
-                    <p className="text-slate-300">
-                      이미지 URL, 위치명, 좌표/각도, 타임스탬프를 Convex에 보관해 실시간 갱신을 지원합니다.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-3">
-                    <p className="font-semibold">카드 액션</p>
-                    <p className="text-slate-300">
-                      저장된 카드에서 모달로 확대하고 &quot;Visit Location&quot;을 통해 홈 뷰 복원 기능을 제공합니다.
-                    </p>
-                  </div>
+                  <Link
+                    to="/"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
+                  >
+                    지금 생성하러 가기
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
                 </div>
               </div>
-            </aside>
-          </div>
+            )}
+          </section>
         </SignedIn>
       </div>
     </div>
   )
 }
 
-type MiniatureItem = Awaited<ReturnType<typeof api.miniatures.listMine>>[number]
+type MiniatureItem = {
+  _id: string
+  _creationTime: number
+  locationName: string
+  lat: number
+  lng: number
+  heading: number
+  pitch: number
+  fov: number
+  imageUrl: string
+  prompt: string
+  mode: string
+  linkCreatedAt: number
+}
 
 type LibraryPreviewGridProps = {
   items: MiniatureItem[]
+  viewMode: 'grid' | 'compact'
 }
 
-function LibraryPreviewGrid({ items }: LibraryPreviewGridProps) {
+function LibraryPreviewGrid({ items, viewMode }: LibraryPreviewGridProps) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-lg">
+    <div className="rounded-2xl border border-white/10 bg-card/80 p-5 shadow-lg backdrop-blur">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-cyan-200/80">샘플 프리뷰</p>
-          <h3 className="text-lg font-semibold">내가 저장한 미니어처</h3>
-          <p className="text-sm text-slate-300">최신순으로 정렬됩니다.</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">샘플 프리뷰</p>
+          <h3 className="text-lg font-semibold text-foreground">내가 저장한 미니어처</h3>
+          <p className="text-sm text-muted-foreground">최신순으로 정렬됩니다.</p>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={`mt-4 grid gap-3 md:gap-4 ${viewMode === 'grid'
+          ? 'grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3'
+          : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+          }`}
+      >
         {items.map((item) => (
-          <LibraryCard key={item._id} item={item} />
+          <LibraryCard key={item._id} item={item} compact={viewMode === 'compact'} />
         ))}
       </div>
     </div>
@@ -190,50 +182,81 @@ function LibraryPreviewGrid({ items }: LibraryPreviewGridProps) {
 
 type LibraryCardProps = {
   item: MiniatureItem
+  compact?: boolean
 }
 
-function LibraryCard({ item }: LibraryCardProps) {
+function LibraryCard({ item, compact }: LibraryCardProps) {
+  const visitSearch = {
+    lat: item.lat,
+    lng: item.lng,
+    heading: item.heading,
+    pitch: item.pitch,
+    fov: item.fov,
+  }
+  const modeConfig: Record<string, { label: string; color: string; bg: string }> = {
+    gemini: { label: 'Gemini', color: 'text-cyan-200', bg: 'bg-cyan-500/15' },
+    passthrough: { label: 'Snapshot', color: 'text-amber-200', bg: 'bg-amber-500/15' },
+    vertex: { label: 'Vertex', color: 'text-emerald-200', bg: 'bg-emerald-500/15' },
+    default: { label: 'Snapshot', color: 'text-amber-200', bg: 'bg-amber-500/15' },
+  }
+  const { label: modeLabel, color: modeColor, bg: modeBg } =
+    modeConfig[item.mode] ?? modeConfig.default
+  const aspectClass = compact ? 'aspect-square' : 'aspect-[4/3]'
+
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-md transition hover:-translate-y-1 hover:border-cyan-500/60 hover:shadow-cyan-500/20">
-      <div className="h-36 w-full bg-slate-900/60">
-        <img src={item.imageUrl} alt={item.locationName} className="h-full w-full object-cover" />
+    <div className="group relative bg-card rounded-xl overflow-hidden border border-white/5 hover:border-white/10 transition-all duration-300 hover:shadow-xl hover:shadow-black/20">
+      <div className={`relative overflow-hidden ${aspectClass}`}>
+        <img
+          src={item.imageUrl}
+          alt={item.locationName}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
+        <div
+          className={`absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-full ${modeBg} backdrop-blur-md border border-white/10`}
+        >
+          <span className={`text-xs font-medium ${modeColor}`}>{modeLabel}</span>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <h3 className="font-semibold text-white truncate">{item.locationName}</h3>
+          <p className="text-xs text-white/70 mt-0.5">
+            {new Date(item._creationTime).toLocaleString()}
+          </p>
+        </div>
+        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="flex items-center gap-1">
+            <Link
+              to="/"
+              search={() => visitSearch}
+              className="h-8 w-8 rounded-full bg-black/40 backdrop-blur-md text-white/80 hover:text-white hover:bg-black/60 border border-white/10 inline-flex items-center justify-center"
+              title="위치로 이동"
+            >
+              <Compass className="h-3.5 w-3.5" />
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-black/40 backdrop-blur-md text-white/80 hover:text-white hover:bg-black/60 border border-white/10"
+              title="More"
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-200/80">
-            <MapPin className="h-4 w-4" />
-            {item.locationName}
-          </div>
-          <h4 className="text-lg font-semibold">{new Date(item._creationTime).toLocaleString()}</h4>
-          <p className="text-sm text-slate-300 line-clamp-2">{item.prompt}</p>
-        </div>
+      <div className="p-4 space-y-3">
+        <p className="text-sm text-muted-foreground line-clamp-2">{item.prompt}</p>
 
-        <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold text-slate-200">
+        <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold text-foreground">
           <AngleBadge label="Heading" value={`${item.heading}°`} />
           <AngleBadge label="Pitch" value={`${item.pitch}°`} />
           <AngleBadge label="FOV" value={`${item.fov}°`} />
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <div className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-1 font-semibold text-emerald-200">
-            <Clock3 className="h-3.5 w-3.5" />
-            저장됨
-          </div>
-          <Link
-            to="/"
-            search={() => ({
-              lat: item.lat,
-              lng: item.lng,
-              heading: item.heading,
-              pitch: item.pitch,
-              fov: item.fov,
-            })}
-            className="inline-flex items-center gap-1 font-semibold text-cyan-200 transition hover:text-cyan-100"
-          >
-            위치로 이동
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock3 className="h-4 w-4" />
+          <span>저장됨</span>
         </div>
       </div>
     </div>
@@ -247,9 +270,11 @@ type AngleBadgeProps = {
 
 function AngleBadge({ label, value }: AngleBadgeProps) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/80 px-2 py-2 text-center shadow-inner">
-      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="text-sm font-semibold text-slate-100">{value}</p>
+    <div className="rounded-lg border border-white/10 bg-secondary/60 px-2 py-2 text-center shadow-inner">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold text-foreground truncate" title={value}>
+        {value}
+      </p>
     </div>
   )
 }
