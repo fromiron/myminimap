@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:convex": "npx convex dev",
+    "dev:all": "concurrently -k -n convex,front -c cyan,magenta \"pnpm run dev:convex\" \"pnpm run dev\"",
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",
@@ -48,6 +50,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "concurrently": "^9.0.1",
     "@vitejs/plugin-react": "^5.0.4",
     "jsdom": "^27.0.0",
     "typescript": "^5.7.2",
