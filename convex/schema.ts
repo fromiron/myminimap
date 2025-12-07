@@ -37,8 +37,11 @@ export default defineSchema({
     .index('by_user_miniature', ['userId', 'miniatureId']),
   userProfiles: defineTable({
     userId: v.string(),
-    nickname: v.string(),
+    nickname: v.optional(v.string()),
+    nicknameNormalized: v.optional(v.string()),
     isPublic: v.boolean(),
     avatar: v.optional(v.string()),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_nickname_norm', ['nicknameNormalized']),
 })

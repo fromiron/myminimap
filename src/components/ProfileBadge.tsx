@@ -11,13 +11,13 @@ export function ProfileBadge() {
 
     const label = useMemo(() => {
         if (profile === undefined) return '불러오는 중...'
-        const trimmed = profile?.nickname.trim()
-        return trimmed && trimmed.length > 0 ? trimmed : 'Explorer'
+    const trimmed = profile?.nickname?.trim()
+    return trimmed && trimmed.length > 0 ? trimmed : 'UPDATE NICKNAME'
     }, [profile])
 
     useEffect(() => {
         if (profile === undefined) return
-        if (profile === null || !profile.avatar) {
+    if (profile === null || !profile.avatar || !profile.nickname) {
             void ensureProfile({})
         }
     }, [profile, ensureProfile])

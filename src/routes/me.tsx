@@ -32,6 +32,15 @@ function MyPage() {
 
   const isLoadingProfile = useMemo(() => profile === undefined, [profile])
 
+  const formatError = (message: string | undefined) => {
+    if (!message) return '저장에 실패했습니다.'
+    if (message.includes('이미 사용 중인 닉네임')) return '이미 사용 중인 닉네임입니다.'
+    if (message.includes('닉네임은 3~10자')) {
+      return '닉네임은 3~10자, 한글/일본어/라틴/숫자 및 ._-만 가능합니다.'
+    }
+    return '저장에 실패했습니다.'
+  }
+
   useEffect(() => {
     if (profile) {
       setNickname(profile.nickname ?? '')
@@ -44,7 +53,7 @@ function MyPage() {
 
   useEffect(() => {
     if (profile === undefined) return
-    if (profile === null || !profile.avatar) {
+    if (profile === null || !profile.avatar || !profile.nickname) {
       void ensureProfile({})
     }
   }, [profile, ensureProfile])
@@ -58,7 +67,7 @@ function MyPage() {
       setStatus('saved')
     } catch (err) {
       setStatus('error')
-      setError(err instanceof Error ? err.message : '저장에 실패했습니다.')
+      setError(formatError(err instanceof Error ? err.message : undefined))
     }
   }
 
@@ -171,7 +180,7 @@ function MyPage() {
                 id={nicknameId}
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="예) MiniMapper"
+                placeholder="예) MiniMapper / UPDATE NICKNAME"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
                 disabled={isLoadingProfile || status === 'saving'}
               />

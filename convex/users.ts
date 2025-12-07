@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import type { MutationCtx } from './_generated/server'
 
 type Identity = {
   subject: string
@@ -17,19 +18,52 @@ async function getIdentity(ctx: { auth: { getUserIdentity: () => Promise<Identit
   return identity
 }
 
-function deriveNickname(identity: Identity, provided?: string) {
-  const trimmed = (provided ?? '').trim()
-  if (trimmed.length > 0) return trimmed
+const NICKNAME_REGEX = /^[\p{L}\p{N}._-]+$/u
 
+const codePointLength = (value: string) => [...value].length
+
+function normalizeNickname(nickname: string) {
+  return nickname.trim().normalize('NFKC').toLocaleLowerCase()
+}
+
+function isNicknameValid(nickname: string) {
+  const trimmed = nickname.trim().normalize('NFKC')
+  const length = codePointLength(trimmed)
+  if (length < 3 || length > 10) return false
+  return NICKNAME_REGEX.test(trimmed)
+}
+
+function sanitizeAutoNickname(base?: string) {
+  if (!base) return undefined
+  const normalized = base.normalize('NFKC')
+  const cleaned = normalized
+    .replace(/\s+/g, '_')
+    .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  const sliced = [...cleaned].slice(0, 10).join('')
+  if (codePointLength(sliced) < 3) return undefined
+  if (!isNicknameValid(sliced)) return undefined
+  return sliced
+}
+
+function candidateFromIdentity(identity: Identity) {
   return (
     identity.name ??
     (identity.givenName && identity.familyName
-      ? `${identity.givenName} ${identity.familyName}`
+      ? `${identity.givenName}_${identity.familyName}`
       : undefined) ??
     (identity.givenName ?? identity.familyName) ??
     (identity.email ? identity.email.split('@')[0] : undefined) ??
     'Explorer'
   )
+}
+
+function deriveNickname(identity: Identity, provided?: string) {
+  const trimmed = (provided ?? '').trim()
+  if (trimmed.length > 0) return trimmed
+
+  return candidateFromIdentity(identity)
 }
 
 function deriveAvatar(identity: Identity) {
@@ -44,6 +78,55 @@ function deriveAvatar(identity: Identity) {
   return typeof possible === 'string' && possible.trim().length > 0
     ? possible.trim()
     : undefined
+}
+
+async function ensureUniqueNickname(
+  ctx: {
+    db: MutationCtx['db']
+  },
+  nickname: string | undefined,
+  userId: string,
+  { soft }: { soft: boolean },
+) {
+  if (!nickname) {
+    return { nickname: undefined as string | undefined, nicknameNormalized: undefined as string | undefined }
+  }
+
+  if (!isNicknameValid(nickname)) {
+    if (soft) {
+      return { nickname: undefined as string | undefined, nicknameNormalized: undefined as string | undefined }
+    }
+    throw new Error('닉네임은 3~10자, 한글/일본어/라틴 문자/숫자와 ._- 만 사용할 수 있습니다.')
+  }
+
+  const nicknameNormalized = normalizeNickname(nickname)
+  const existing = await ctx.db
+    .query('userProfiles')
+    .withIndex('by_nickname_norm', (q) => q.eq('nicknameNormalized', nicknameNormalized))
+    .first()
+
+  const fallback =
+    existing ??
+    (await ctx.db
+      .query('userProfiles')
+      .collect()
+      .then((docs: any[]) =>
+        docs.find(
+          (doc) =>
+            doc.userId !== userId &&
+            doc.nickname &&
+            normalizeNickname(doc.nickname) === nicknameNormalized,
+        ),
+      ))
+
+  if (fallback && fallback.userId !== userId) {
+    if (soft) {
+      return { nickname: undefined as string | undefined, nicknameNormalized: undefined as string | undefined }
+    }
+    throw new Error('이미 사용 중인 닉네임입니다.')
+  }
+
+  return { nickname, nicknameNormalized }
 }
 
 export const getMyProfile = query({
@@ -68,8 +151,19 @@ export const upsertProfile = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx)
-    const nickname = deriveNickname(identity, args.nickname)
+    const requested = args.nickname.trim()
     const avatar = args.avatar?.trim?.()
+
+    if (requested.length === 0) {
+      throw new Error('닉네임을 입력하세요.')
+    }
+
+    const { nickname, nicknameNormalized } = await ensureUniqueNickname(
+      ctx,
+      requested.length > 0 ? requested : undefined,
+      identity.subject,
+      { soft: false },
+    )
 
     const existing = await ctx.db
       .query('userProfiles')
@@ -79,6 +173,7 @@ export const upsertProfile = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         nickname,
+        nicknameNormalized,
         isPublic: args.isPublic,
         ...(avatar ? { avatar } : {}),
       })
@@ -88,6 +183,7 @@ export const upsertProfile = mutation({
     return await ctx.db.insert('userProfiles', {
       userId: identity.subject,
       nickname,
+      nicknameNormalized,
       isPublic: args.isPublic,
       ...(avatar ? { avatar } : {}),
     })
@@ -99,7 +195,10 @@ export const ensureProfileFromIdentity = mutation({
   handler: async (ctx) => {
     const identity = await getIdentity(ctx)
     const avatar = deriveAvatar(identity)
-    const nickname = deriveNickname(identity)
+    const candidate = sanitizeAutoNickname(deriveNickname(identity))
+    const { nickname, nicknameNormalized } = await ensureUniqueNickname(ctx, candidate, identity.subject, {
+      soft: true,
+    })
 
     const existing = await ctx.db
       .query('userProfiles')
@@ -107,12 +206,16 @@ export const ensureProfileFromIdentity = mutation({
       .first()
 
     if (existing) {
-      const updates: Partial<Pick<typeof existing, 'nickname' | 'avatar'>> = {}
+      const updates: Partial<Pick<typeof existing, 'nickname' | 'nicknameNormalized' | 'avatar'>> = {}
       if ((!existing.nickname || existing.nickname.trim().length === 0) && nickname) {
         updates.nickname = nickname
+        updates.nicknameNormalized = nicknameNormalized
       }
       if ((!existing.avatar || existing.avatar.trim().length === 0) && avatar) {
         updates.avatar = avatar
+      }
+      if (!existing.nicknameNormalized && existing.nickname) {
+        updates.nicknameNormalized = normalizeNickname(existing.nickname)
       }
       if (Object.keys(updates).length > 0) {
         await ctx.db.patch(existing._id, updates)
@@ -123,6 +226,7 @@ export const ensureProfileFromIdentity = mutation({
     return await ctx.db.insert('userProfiles', {
       userId: identity.subject,
       nickname,
+      nicknameNormalized,
       isPublic: true,
       ...(avatar ? { avatar } : {}),
     })
@@ -158,9 +262,15 @@ export const saveProfileAvatar = mutation({
       return existing._id
     }
 
+    const candidate = sanitizeAutoNickname(deriveNickname(identity))
+    const { nickname, nicknameNormalized } = await ensureUniqueNickname(ctx, candidate, identity.subject, {
+      soft: true,
+    })
+
     return await ctx.db.insert('userProfiles', {
       userId: identity.subject,
-      nickname: deriveNickname(identity),
+      nickname,
+      nicknameNormalized,
       isPublic: true,
       avatar: avatarUrl,
     })
