@@ -1,7 +1,7 @@
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { SignInCta } from '../components/SignInCta'
 
@@ -22,11 +22,12 @@ function MyPage() {
     'idle',
   )
   const [error, setError] = useState<string | null>(null)
-  const [avatarStatus, setAvatarStatus] = useState<'idle' | 'uploading' | 'saved' | 'error'>(
-    'idle',
-  )
+  const [avatarStatus, setAvatarStatus] = useState<'idle' | 'queued' | 'uploading' | 'saved' | 'error'>('idle')
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const nicknameId = useId()
   const publicFlagId = useId()
 
@@ -63,10 +64,20 @@ function MyPage() {
     setStatus('saving')
     setError(null)
     try {
+      if (pendingAvatarFile) {
+        setAvatarStatus('uploading')
+        setAvatarError(null)
+        await uploadAvatar(pendingAvatarFile)
+        setAvatarStatus('saved')
+        setPendingAvatarFile(null)
+      }
       await saveProfile({ nickname, isPublic })
       setStatus('saved')
     } catch (err) {
       setStatus('error')
+      if (pendingAvatarFile) {
+        setAvatarStatus('error')
+      }
       setError(formatError(err instanceof Error ? err.message : undefined))
     }
   }
@@ -74,9 +85,20 @@ function MyPage() {
   const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    setAvatarStatus('uploading')
-    setAvatarError(null)
+    queueAvatar(file)
+    event.target.value = ''
+  }
 
+  const queueAvatar = (file: File) => {
+    setPendingAvatarFile(file)
+    setAvatarStatus('queued')
+    setAvatarError(null)
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+  }
+
+  const uploadAvatar = async (file: File) => {
+    if (!file) return
     try {
       const uploadUrl = await requestUploadUrl({})
       const response = await fetch(uploadUrl, {
@@ -95,11 +117,34 @@ function MyPage() {
       }
 
       await saveAvatar({ storageId: json.storageId })
-      setAvatarPreview(URL.createObjectURL(file))
-      setAvatarStatus('saved')
     } catch (err) {
-      setAvatarStatus('error')
       setAvatarError(err instanceof Error ? err.message : '아바타 업로드에 실패했습니다.')
+      throw err
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+    queueAvatar(file)
+  }
+
+  const handleKeyDownDrop = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      fileInputRef.current?.click()
     }
   }
 
@@ -136,40 +181,54 @@ function MyPage() {
             onSubmit={handleSubmit}
             className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-700 bg-slate-800">
+            <button
+              type="button"
+              className={`flex w-full flex-col gap-4 rounded-xl border-2 border-dashed ${isDragging ? 'border-cyan-400 bg-cyan-500/5' : 'border-slate-700 bg-slate-900/60'
+                } p-4 text-left transition`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onKeyDown={handleKeyDownDrop}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="아바타 이미지를 업로드하거나 드래그 앤 드롭하세요"
+            >
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="h-32 w-32 overflow-hidden rounded-full border border-slate-700 bg-slate-800">
                   {avatarPreview ? (
                     <img
                       src={avatarPreview}
                       alt="avatar"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm font-bold text-slate-200">
+                    <div className="flex h-full w-full items-center justify-center text-lg font-bold text-slate-200">
                       {nickname?.[0]?.toUpperCase?.() ?? 'E'}
                     </div>
                   )}
                 </div>
-                <div>
+                <div className="flex flex-1 flex-col gap-2 text-center sm:text-left">
                   <p className="text-sm font-semibold text-slate-100">프로필 이미지</p>
                   <p className="text-xs text-slate-400">
-                    Google/Discord 사진이 비어 있으면 여기에 업로드하세요.
+                    이미지를 선택/드래그하면 미리보기로 추가되고, 저장 버튼을 누르면 반영됩니다.
                   </p>
+                  {avatarStatus === 'queued' ? (
+                    <p className="text-xs text-cyan-200">저장 버튼을 눌러 업로드하세요.</p>
+                  ) : avatarStatus === 'uploading' ? (
+                    <p className="text-xs text-cyan-200">업로드 중...</p>
+                  ) : null}
                 </div>
+
               </div>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-400 hover:text-cyan-100">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                  disabled={avatarStatus === 'uploading'}
-                />
-                {avatarStatus === 'uploading' ? '업로드 중...' : '이미지 업로드'}
-              </label>
-            </div>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+              disabled={avatarStatus === 'uploading'}
+            />
             {avatarError ? <p className="text-xs text-amber-200">{avatarError}</p> : null}
 
             <div className="space-y-1">
