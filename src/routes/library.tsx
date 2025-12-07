@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton } from '@clerk/clerk-react'
+import { SignedIn, SignedOut } from '@clerk/clerk-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   ArrowUpRight,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
+import { SignInCta } from '../components/SignInCta'
 
 export const Route = createFileRoute('/library')({
   component: LibraryPage,
@@ -58,12 +59,10 @@ function LibraryPage() {
                   Google OAuth(Clerk)로 로그인하면 저장한 미니어처를 볼 수 있어요. 이후
                   Convex에서 사용자별로 정렬된 보관함을 제공합니다.
                 </p>
-                <SignInButton mode="modal">
-                  <button className="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">
-                    지금 로그인
-                    <ArrowUpRight className="h-4 w-4" />
-                  </button>
-                </SignInButton>
+                <SignInCta className="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">
+                  지금 로그인
+                  <ArrowUpRight className="h-4 w-4" />
+                </SignInCta>
               </div>
             </div>
           </div>

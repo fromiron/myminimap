@@ -1,11 +1,8 @@
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  UserButton,
-} from '@clerk/clerk-react'
+import { SignedIn, SignedOut } from '@clerk/clerk-react'
 import { Link } from '@tanstack/react-router'
 import { MapPinned } from 'lucide-react'
+import { ProfileBadge } from './ProfileBadge'
+import { SignInCta } from './SignInCta'
 
 export default function Header() {
   return (
@@ -27,18 +24,13 @@ export default function Header() {
             >
               My Library
             </Link>
-            <UserButton afterSignOutUrl="/" />
+            <ProfileBadge />
           </SignedIn>
 
           <SignedOut>
-            <SignInButton mode="modal">
-              <button
-                type="button"
-                className="rounded-full bg-cyan-500 px-3 py-1 text-xs font-semibold text-slate-950 shadow transition-colors hover:bg-cyan-400"
-              >
-                Login
-              </button>
-            </SignInButton>
+            <SignInCta className="rounded-full bg-cyan-500 px-3 py-1 text-xs font-semibold text-slate-950 shadow transition-colors hover:bg-cyan-400">
+              Login
+            </SignInCta>
           </SignedOut>
         </div>
       </div>
